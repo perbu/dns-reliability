@@ -1,4 +1,5 @@
 interval: 30s
+report_interval: 5m
 dns:
   - provider: fastname
     servers:

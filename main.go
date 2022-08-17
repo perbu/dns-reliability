@@ -33,7 +33,7 @@ func realMain() error {
 	if err != nil {
 		return fmt.Errorf("config.ParseConfigFile: %w", err)
 	}
-	fmt.Printf("Poll interval is %v\n", c.Interval)
+	fmt.Printf("Poll interval is %v, report interval is %v\n", c.Interval, c.ReportInterval)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*7)
 	defer cancel()
@@ -63,31 +63,61 @@ func runMonitor(ctx context.Context, c config.Config) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		processResults(ctx, ch)
+		processResults(ctx, ch, c.ReportInterval)
 	}()
 	wg.Wait()
 	close(ch)
 	return nil
 }
 
-func processResults(ctx context.Context, ch resCh) {
-	type mres struct {
-		latency time.Duration
-		ts      time.Time
-		err     error
-	}
-	type curr struct {
+type mres struct {
+	latency time.Duration
+	ts      time.Time
+	err     error
+}
+
+type reportData map[string][]mres
+
+func makeReport(report reportData) {
+	type errorsFound struct {
 		ts  time.Time
 		err error
 	}
+
+	for k, v := range report {
+		failures := 0
+		successes := 0
+		errs := make([]errorsFound, 0)
+		for _, r := range v {
+			if r.err != nil {
+				failures++
+				errs = append(errs, errorsFound{err: r.err, ts: r.ts})
+			} else {
+				successes++
+			}
+		}
+		fmt.Printf("%s: sucessses: %d, failures: %d\n", k, successes, failures)
+		for _, r := range errs {
+			fmt.Printf("   - %v: %s\n", r.ts, r.err)
+		}
+	}
+
+}
+
+func processResults(ctx context.Context, ch resCh, reportInterval time.Duration) {
 	// 	var data map[string][]mres
-	data := make(map[string][]mres)
+	data := make(reportData)
+	reportTicker := time.NewTicker(reportInterval)
+	defer reportTicker.Stop()
 loop:
 	for {
 		select {
 		case <-ctx.Done():
 			fmt.Print("\n")
 			break loop
+		case <-reportTicker.C:
+			fmt.Println("\n======= Intermediate report =======")
+			makeReport(data)
 		case r := <-ch:
 			lst, ok := data[r.server]
 			if !ok {
@@ -102,24 +132,8 @@ loop:
 			fmt.Print(".")
 		}
 	}
-	fmt.Println("======= Interrupt =======")
-	for k, v := range data {
-		failures := 0
-		successes := 0
-		errs := make([]curr, 0)
-		for _, r := range v {
-			if r.err != nil {
-				failures++
-				errs = append(errs, curr{err: r.err, ts: r.ts})
-			} else {
-				successes++
-			}
-		}
-		fmt.Printf("%s: sucessses: %d, failures: %d\n", k, successes, failures)
-		for _, r := range errs {
-			fmt.Printf("   - %v: %s\n", r.ts, r.err)
-		}
-	}
+	fmt.Println("\n======= Final report =======")
+	makeReport(data)
 }
 
 func monitorServer(ctx context.Context, ch resCh, entry config.Server, interval time.Duration) {
@@ -130,16 +144,21 @@ func monitorServer(ctx context.Context, ch resCh, entry config.Server, interval 
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	for ctx.Err() == nil {
-		<-ticker.C
-		start := time.Now()
-		_, err := resolver.LookupHost(ctx, entry.Query)
-		dur := time.Since(start)
-		ch <- res{
-			server: entry.Name,
-			time:   start,
-			dur:    dur,
-			err:    err,
+loop:
+	for {
+		select {
+		case <-ctx.Done():
+			break loop
+		case <-ticker.C:
+			start := time.Now()
+			_, err := resolver.LookupHost(ctx, entry.Query)
+			dur := time.Since(start)
+			ch <- res{
+				server: entry.Name,
+				time:   start,
+				dur:    dur,
+				err:    err,
+			}
 		}
 	}
 }

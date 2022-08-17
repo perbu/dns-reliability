@@ -3,8 +3,9 @@ package config
 import "time"
 
 type Config struct {
-	Interval time.Duration `yaml:"interval"`
-	DNS      []DNS         `yaml:"dns"`
+	Interval       time.Duration `yaml:"interval"`
+	ReportInterval time.Duration `yaml:"report_interval"`
+	DNS            []DNS         `yaml:"dns"`
 }
 type Server struct {
 	Name  string `yaml:"name"`
