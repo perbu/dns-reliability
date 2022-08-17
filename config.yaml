@@ -1,0 +1,30 @@
+interval: 30s
+dns:
+  - provider: fastname
+    servers:
+      - name: ns01.no.brand.one.com
+        ipv4: 195.206.121.12
+        ipv6: 2001:67c:28cc::12
+        query: demo.cwy.no
+      - name: ns02.no.brand.one.com
+        query: demo.cwy.no
+        ipv4: 185.10.11.12
+        ipv6: 2001:67c:28cc:1::12
+  - provider: google
+    servers:
+      - name: "ns-cloud-d1.googledomains.com"
+        query: kms.cwy.no
+        ipv4: 216.239.32.109
+        ipv6: 2001:4860:4802:32::6d
+      - name: "ns-cloud-d2.googledomains.com"
+        ipv4: 216.239.34.109
+        ipv6: 2001:4860:4802:34::6d
+        query: kms.cwy.no
+      - name: "ns-cloud-d3.googledomains.com"
+        ipv4: 216.239.36.109
+        ipv6: 2001:4860:4802:36::6d
+        query: kms.cwy.no
+      - name: "ns-cloud-d4.googledomains.com"
+        query: kms.cwy.no
+        ipv4: 216.239.38.109
+        ipv6: 2001:4860:4802:38::6d
